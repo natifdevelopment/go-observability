@@ -23,7 +23,7 @@
 //	)
 //
 //	log.Error(ctx, "database connection failed",
-//	    logger.Error(err),
+//	    logger.ErrorAttr(err),
 //	    logger.String("host", dbHost),
 //	)
 //
@@ -43,6 +43,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -60,6 +62,9 @@ type Logger struct {
 	builderLog *builder.Logger
 	closed     atomic.Bool
 }
+
+var defaultLogger atomic.Pointer[Logger]
+var defaultLoggerOnce sync.Once
 
 // New creates a Logger from the given config.
 // This is the primary entry point for the framework.
@@ -92,6 +97,79 @@ func NewWithBuilder(b *builder.Builder) (*Logger, error) {
 // Returns a *config.Config for use with New().
 func FromEnv() *config.Config {
 	return config.FromEnv()
+}
+
+func SetDefault(log *Logger) {
+	if log != nil {
+		defaultLogger.Store(log)
+	}
+}
+
+func Default() *Logger {
+	if log := defaultLogger.Load(); log != nil {
+		return log
+	}
+	defaultLoggerOnce.Do(func() {
+		log, err := New(FromEnv())
+		if err == nil {
+			defaultLogger.CompareAndSwap(nil, log)
+		}
+	})
+	return defaultLogger.Load()
+}
+
+func Println(args ...any) {
+	if log := Default(); log != nil {
+		log.Info(context.Background(), strings.TrimSuffix(fmt.Sprintln(args...), "\n"))
+	}
+}
+
+func Printf(format string, args ...any) {
+	if log := Default(); log != nil {
+		log.Info(context.Background(), fmt.Sprintf(format, args...))
+	}
+}
+
+func Error(args ...any) {
+	if log := Default(); log != nil {
+		log.Error(context.Background(), strings.TrimSuffix(fmt.Sprintln(args...), "\n"))
+	}
+}
+
+func Errorln(args ...any) {
+	Error(args...)
+}
+
+func Errorf(format string, args ...any) {
+	if log := Default(); log != nil {
+		log.Error(context.Background(), fmt.Sprintf(format, args...))
+	}
+}
+
+func Warn(args ...any) {
+	if log := Default(); log != nil {
+		log.Warn(context.Background(), strings.TrimSuffix(fmt.Sprintln(args...), "\n"))
+	}
+}
+
+func Warnf(format string, args ...any) {
+	if log := Default(); log != nil {
+		log.Warn(context.Background(), fmt.Sprintf(format, args...))
+	}
+}
+
+func Fatal(args ...any) {
+	if log := Default(); log != nil {
+		log.Fatal(context.Background(), strings.TrimSuffix(fmt.Sprintln(args...), "\n"))
+	}
+	os.Exit(1)
+}
+
+func Fatalf(format string, args ...any) {
+	if log := Default(); log != nil {
+		log.Fatal(context.Background(), fmt.Sprintf(format, args...))
+	}
+	os.Exit(1)
 }
 
 // --- Context-first logging methods ---
@@ -305,8 +383,8 @@ func Any(key string, value any) slog.Attr {
 	return slog.Any(key, value)
 }
 
-// Error creates an error attribute.
-func Error(err error) slog.Attr {
+// ErrorAttr creates an error attribute.
+func ErrorAttr(err error) slog.Attr {
 	if err == nil {
 		return slog.String(string(core.FieldError), "")
 	}

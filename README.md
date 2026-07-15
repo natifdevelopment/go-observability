@@ -232,6 +232,8 @@ go-observability/
 │   ├── database/         # Database query logging facade
 │   ├── external/         # External API logging facade
 │   ├── helper/           # Utility functions
+│   ├── integration/      # Third-party integrations
+│   │   └── sentry/       # Sentry error tracking hook (build tag: sentry)
 │   ├── metrics/          # Logger health metrics
 │   └── lifecycle/        # Graceful shutdown
 ├── metrics/              # Metrics framework (planned)
@@ -239,6 +241,61 @@ go-observability/
 ├── go.mod
 └── README.md
 ```
+
+## Sentry Integration (Error Tracking)
+
+The framework includes a Sentry hook that automatically captures ERROR, FATAL,
+and PANIC log records and sends them to Sentry for error tracking and alerting.
+
+### Enabling
+
+```bash
+go get github.com/getsentry/sentry-go
+go build -tags sentry
+```
+
+Without the `sentry` build tag, the hook is a no-op stub (zero overhead,
+no dependency required).
+
+### Quick Start
+
+```go
+import (
+    "github.com/natifdevelopment/go-observability/logging/builder"
+    sentryhook "github.com/natifdevelopment/go-observability/logging/integration/sentry"
+    "github.com/natifdevelopment/go-observability/logging/logger"
+)
+
+sentryHook, err := sentryhook.NewHookFromEnv()
+if err != nil {
+    log.Fatalf("sentry init failed: %v", err)
+}
+defer sentryHook.Flush()
+
+log, _ := logger.NewWithBuilder(builder.New(
+    builder.WithConfig(logger.FromEnv()),
+    builder.WithHooks(sentryHook),
+))
+```
+
+### Configuration (Environment Variables)
+
+| Variable | Default | Description |
+|---|---|---|
+| `SENTRY_DSN` | — | Sentry project DSN (empty = disabled) |
+| `SENTRY_SAMPLE_RATE` | `1.0` | Fraction of events to send (0.0–1.0) |
+| `SERVICE_NAME` | `unknown` | Service tag on Sentry events |
+| `ENVIRONMENT` | `development` | Environment tag |
+| `SERVICE_VERSION` | `0.0.0` | Release tag |
+
+### Features
+
+- **Automatic capture**: ERROR, FATAL, PANIC logs sent to Sentry
+- **Breadcrumbs**: INFO/WARN logs recorded as breadcrumbs for context
+- **Structured tags**: `service`, `environment`, `trace_id`, `request_id` attached
+- **Stacktrace**: Sentry renders stacktraces from log records
+- **Sampling**: Control event volume via `SENTRY_SAMPLE_RATE`
+- **Graceful degradation**: Empty DSN = no-op (safe for development)
 
 ## Standards Compliance
 
