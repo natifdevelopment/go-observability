@@ -119,7 +119,7 @@ func BenchmarkLogger_AttrConstructors(b *testing.B) {
 		_ = String("key", "value")
 		_ = Int("n", 42)
 		_ = Bool("b", true)
-		_ = Error(fmt.Errorf("err"))
+		_ = ErrorAttr(fmt.Errorf("err"))
 	}
 }
 

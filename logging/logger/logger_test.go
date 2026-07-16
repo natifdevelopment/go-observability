@@ -397,10 +397,10 @@ func TestAttrConstructors(t *testing.T) {
 	if !Bool("b", true).Value.Bool() {
 		t.Error("Bool attr failed")
 	}
-	if Error(fmt.Errorf("test")).Value.String() != "test" {
+	if ErrorAttr(fmt.Errorf("test")).Value.String() != "test" {
 		t.Error("Error attr failed")
 	}
-	if Error(nil).Value.String() != "" {
+	if ErrorAttr(nil).Value.String() != "" {
 		t.Error("Error(nil) should return empty string")
 	}
 	if ErrCode("E001").Value.String() != "E001" {
