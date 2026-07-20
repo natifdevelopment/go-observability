@@ -77,7 +77,6 @@ func (f *Facade) LogError(ctx context.Context, service, endpoint string, err err
 		slog.String("endpoint", endpoint),
 	)
 	if err != nil {
-		attrs = append(attrs, slog.String("error", err.Error()))
 	}
 	f.logger.Error(ctx, "external: service error", attrs...)
 }
