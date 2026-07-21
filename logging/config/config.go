@@ -65,6 +65,11 @@ import (
 	"github.com/natifdevelopment/go-observability/logging/core"
 )
 
+// GlobalConfig holds the logging configuration set by the application.
+// When non-nil, FromEnv returns a copy of it instead of reading environment
+// variables, so services can centralize config in configs.* globals.
+var GlobalConfig *Config
+
 // Config holds all logging configuration.
 type Config struct {
 	// Core
@@ -130,9 +135,14 @@ func DefaultConfig() *Config {
 	}
 }
 
-// FromEnv loads configuration from environment variables.
-// Missing variables use defaults from DefaultConfig().
+// FromEnv returns the logging configuration.
+// If the application has set GlobalConfig, a copy of it is returned.
+// Otherwise configuration is loaded from environment variables with defaults.
 func FromEnv() *Config {
+	if GlobalConfig != nil {
+		c := *GlobalConfig
+		return &c
+	}
 	cfg := DefaultConfig()
 
 	// Core

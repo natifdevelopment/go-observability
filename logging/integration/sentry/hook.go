@@ -82,6 +82,11 @@ type HookConfig struct {
 	FlushTimeout time.Duration
 }
 
+// HookConfigGlobal holds the Sentry configuration set by the application.
+// NewHookFromEnv uses it as the primary source and falls back to environment
+// variables for any empty fields.
+var HookConfigGlobal HookConfig
+
 // SentryHook is a core.Hook that captures error-level log records
 // and sends them to Sentry. It also records breadcrumbs for lower
 // level logs.
@@ -89,9 +94,9 @@ type HookConfig struct {
 // Thread-safe: SentryHook uses Sentry's built-in buffering and a
 // local mutex for breadcrumb management.
 type SentryHook struct {
-	cfg       HookConfig
+	cfg         HookConfig
 	initialized bool
-	mu        sync.Mutex
+	mu          sync.Mutex
 }
 
 // NewHook creates and initializes a SentryHook from the given config.
@@ -147,7 +152,7 @@ func NewHook(cfg HookConfig) (*SentryHook, error) {
 	}, nil
 }
 
-// NewHookFromEnv creates a SentryHook using environment variables:
+// NewHookFromEnv creates a SentryHook using HookConfigGlobal or environment variables:
 //
 //   - SENTRY_DSN          (required for activation)
 //   - SERVICE_NAME        (service tag)
@@ -155,17 +160,26 @@ func NewHook(cfg HookConfig) (*SentryHook, error) {
 //   - SERVICE_VERSION     (release tag)
 //   - SENTRY_SAMPLE_RATE  (float, default 1.0)
 func NewHookFromEnv() (*SentryHook, error) {
-	cfg := HookConfig{
-		DSN:          os.Getenv("SENTRY_DSN"),
-		Service:      os.Getenv("SERVICE_NAME"),
-		Environment:  os.Getenv("ENVIRONMENT"),
-		Release:      os.Getenv("SERVICE_VERSION"),
+	cfg := HookConfigGlobal
+	if cfg.DSN == "" {
+		cfg.DSN = os.Getenv("SENTRY_DSN")
 	}
-	if v := os.Getenv("SENTRY_SAMPLE_RATE"); v != "" {
-		var rate float64
-		fmt.Sscanf(v, "%f", &rate)
-		if rate > 0 {
-			cfg.SampleRate = rate
+	if cfg.Service == "" {
+		cfg.Service = os.Getenv("SERVICE_NAME")
+	}
+	if cfg.Environment == "" {
+		cfg.Environment = os.Getenv("ENVIRONMENT")
+	}
+	if cfg.Release == "" {
+		cfg.Release = os.Getenv("SERVICE_VERSION")
+	}
+	if cfg.SampleRate == 0 {
+		if v := os.Getenv("SENTRY_SAMPLE_RATE"); v != "" {
+			var rate float64
+			fmt.Sscanf(v, "%f", &rate)
+			if rate > 0 {
+				cfg.SampleRate = rate
+			}
 		}
 	}
 	return NewHook(cfg)

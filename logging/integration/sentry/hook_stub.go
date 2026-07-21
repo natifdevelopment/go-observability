@@ -43,6 +43,10 @@ type HookConfig struct {
 	FlushTimeout      time.Duration
 }
 
+// HookConfigGlobal holds the Sentry configuration set by the application.
+// See hook.go (build tag "sentry") for the implementation.
+var HookConfigGlobal HookConfig
+
 // SentryHook is a no-op stub that implements core.Hook.
 // When the "sentry" build tag is enabled, this type captures
 // error-level log records and sends them to Sentry.
@@ -72,19 +76,28 @@ func NewHook(cfg HookConfig) (*SentryHook, error) {
 	return &SentryHook{cfg: cfg}, nil
 }
 
-// NewHookFromEnv creates a no-op SentryHook stub from environment variables.
+// NewHookFromEnv creates a no-op SentryHook stub from HookConfigGlobal or
+// environment variables.
 //
 // To enable the real implementation:
 //
 //	go get github.com/getsentry/sentry-go
 //	go build -tags sentry
 func NewHookFromEnv() (*SentryHook, error) {
-	return NewHook(HookConfig{
-		DSN:         os.Getenv("SENTRY_DSN"),
-		Service:     os.Getenv("SERVICE_NAME"),
-		Environment: os.Getenv("ENVIRONMENT"),
-		Release:     os.Getenv("SERVICE_VERSION"),
-	})
+	cfg := HookConfigGlobal
+	if cfg.DSN == "" {
+		cfg.DSN = os.Getenv("SENTRY_DSN")
+	}
+	if cfg.Service == "" {
+		cfg.Service = os.Getenv("SERVICE_NAME")
+	}
+	if cfg.Environment == "" {
+		cfg.Environment = os.Getenv("ENVIRONMENT")
+	}
+	if cfg.Release == "" {
+		cfg.Release = os.Getenv("SERVICE_VERSION")
+	}
+	return NewHook(cfg)
 }
 
 // BeforeWrite is a no-op stub.
