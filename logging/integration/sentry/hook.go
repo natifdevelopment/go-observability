@@ -258,15 +258,17 @@ func (h *SentryHook) captureEvent(ctx context.Context, record slog.Record, level
 		attrs["request_id"] = requestID
 	}
 	userID := core.UserID(ctx)
-	if userID != "" {
-		sentry.SetUser(sentry.User{ID: userID})
-	}
 
 	// Build Sentry event.
 	event := sentry.NewEvent()
 	event.Level = mapLogLevel(level)
 	event.Message = record.Message
-	event.Extra = attrs
+	if userID != "" {
+		event.User = sentry.User{ID: userID}
+	}
+	if len(attrs) > 0 {
+		event.Contexts = map[string]sentry.Context{"extra": attrs}
+	}
 	event.Tags = map[string]string{
 		"service":     h.cfg.Service,
 		"environment": h.cfg.Environment,
@@ -278,7 +280,7 @@ func (h *SentryHook) captureEvent(ctx context.Context, record slog.Record, level
 	// If there's an error field, capture it as an exception with stacktrace.
 	if errMsg, ok := attrs["error"]; ok {
 		event.Exception = []sentry.Exception{{
-			Value:      errMsg,
+			Value:      fmt.Sprintf("%v", errMsg),
 			Type:       "error",
 			Stacktrace: sentry.NewStacktrace(),
 		}}
@@ -289,36 +291,36 @@ func (h *SentryHook) captureEvent(ctx context.Context, record slog.Record, level
 	sentry.CaptureEvent(event)
 }
 
-// extractAttrs converts slog.Record attrs to a map[string]string.
-func extractAttrs(record slog.Record) map[string]string {
-	attrs := make(map[string]string, 16)
+// extractAttrs converts slog.Record attrs to a map[string]any.
+func extractAttrs(record slog.Record) map[string]any {
+	attrs := make(map[string]any, 16)
 	record.Attrs(func(a slog.Attr) bool {
-		attrs[a.Key] = attrValueToString(a)
+		attrs[a.Key] = attrValueToAny(a)
 		return true
 	})
 	return attrs
 }
 
-// attrValueToString converts a slog.Attr's value to a string.
-func attrValueToString(a slog.Attr) string {
+// attrValueToAny converts a slog.Attr's value to an any.
+func attrValueToAny(a slog.Attr) any {
 	v := a.Value.Resolve()
 	switch v.Kind() {
 	case slog.KindString:
 		return v.String()
 	case slog.KindInt64:
-		return fmt.Sprintf("%d", v.Int64())
+		return v.Int64()
 	case slog.KindUint64:
-		return fmt.Sprintf("%d", v.Uint64())
+		return v.Uint64()
 	case slog.KindFloat64:
-		return fmt.Sprintf("%f", v.Float64())
+		return v.Float64()
 	case slog.KindBool:
-		return fmt.Sprintf("%t", v.Bool())
+		return v.Bool()
 	case slog.KindDuration:
 		return v.Duration().String()
 	case slog.KindTime:
 		return v.Time().Format(time.RFC3339)
 	default:
-		return fmt.Sprintf("%v", v.Any())
+		return v.Any()
 	}
 }
 
